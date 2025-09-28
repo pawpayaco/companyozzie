@@ -8,7 +8,7 @@
   ],
   "routes": [
     {
-      "src": "/t(?:\\?.*)?",
+      "src": "/t",
       "methods": ["GET"],
       "dest": "/api/uid-redirect.js"
     },
@@ -22,4 +22,5 @@
     }
   ]
 }
+
 
