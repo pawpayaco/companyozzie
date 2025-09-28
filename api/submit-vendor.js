@@ -1,8 +1,8 @@
-// File: /api/submit-vendor.js
+// /api/submit-vendor.js
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
+    return res.status(405).json({ error: 'Method not allowed' });
   }
 
   const {
@@ -15,46 +15,40 @@ export default async function handler(req, res) {
     inventoryCap,
     photoUrl,
     collectionName,
-    onboardedBy,
+    sourcedBy,
   } = req.body;
 
-  // Basic validation
-  if (!name || !email || !platformUrl || !collectionName) {
+  if (!name || !platformUrl || !collectionName) {
     return res.status(400).json({ error: 'Missing required fields.' });
   }
 
-  // Supabase client setup (server-side)
-  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
 
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/vendors`, {
-    method: 'POST',
-    headers: {
-      apikey: SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-      'Content-Type': 'application/json',
-      Prefer: 'return=representation'
-    },
-    body: JSON.stringify({
-      name,
-      email,
-      store_type: storeType,
-      platform_url: platformUrl,
-      website_url: website,
-      shipping_time: fulfillmentSpeed,
-      capacity: inventoryCap,
-      photo_url: photoUrl,
-      collection_name: collectionName,
-      onboarded_by: onboardedBy || null,
-      created_at: new Date().toISOString()
-    }),
-  });
+    const { data, error } = await supabase.from('vendors').insert([
+      {
+        name,
+        email,
+        store_type: storeType,
+        website,
+        platform_url: platformUrl,
+        fulfillment_speed: fulfillmentSpeed,
+        capacity: inventoryCap,
+        photo_url: photoUrl,
+        collection_name: collectionName,
+        onboarded_by: sourcedBy || null,
+      },
+    ]);
 
-  if (!response.ok) {
-    const err = await response.text();
-    return res.status(500).json({ error: 'Failed to submit vendor: ' + err });
+    if (error) {
+      console.error('Supabase error:', error);
+      return res.status(500).json({ error: 'Failed to submit vendor.' });
+    }
+
+    return res.status(200).json({ success: true, vendor: data[0] });
+  } catch (err) {
+    console.error('API error:', err);
+    return res.status(500).json({ error: 'Server error' });
   }
-
-  const data = await response.json();
-  return res.status(200).json({ success: true, vendor: data[0] });
 }
