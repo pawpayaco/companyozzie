@@ -1,4 +1,4 @@
-// /api/uid-redirect.js
+// /pages/api/uid-redirect.js
 
 export default async function handler(req, res) {
   const { u: uid } = req.query;
@@ -9,9 +9,10 @@ export default async function handler(req, res) {
 
   try {
     const { createClient } = await import('@supabase/supabase-js');
+
     const supabase = createClient(
       process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY // Use SERVICE key for server-side reads
+      process.env.SUPABASE_SERVICE_ROLE_KEY // ⚠️ Server-side only!
     );
 
     const { data: uidRow, error } = await supabase
@@ -20,18 +21,25 @@ export default async function handler(req, res) {
       .eq('uid', uid)
       .single();
 
-    if (error || !uidRow) {
-      console.warn('UID not found or Supabase error:', error);
-      return res.redirect(`/claim?u=${uid}`);
+    if (error) {
+      console.warn('[Supabase Error]', error.message);
+      return res.redirect(302, `/claim?u=${uid}`);
     }
 
-    if (!uidRow.is_claimed || !uidRow.affiliate_url) {
-      return res.redirect(`/claim?u=${uid}`);
+    if (!uidRow) {
+      console.warn('[UID Not Found]', uid);
+      return res.redirect(302, `/claim?u=${uid}`);
     }
 
-    return res.redirect(uidRow.affiliate_url);
+    const { is_claimed, affiliate_url } = uidRow;
+
+    if (!is_claimed || !affiliate_url) {
+      return res.redirect(302, `/claim?u=${uid}`);
+    }
+
+    return res.redirect(302, affiliate_url);
   } catch (err) {
-    console.error('Redirect error:', err);
-    return res.redirect(`/claim?u=${uid}`);
+    console.error('[Redirect Handler Error]', err);
+    return res.redirect(302, `/claim?u=${uid}`);
   }
 }
