@@ -1,37 +1,37 @@
-// File: /api/uid-redirect.js
+// /api/uid-redirect.js
+
 export default async function handler(req, res) {
-  const { query } = req;
-  const uid = query.u;
+  const { u: uid } = req.query;
 
   if (!uid) {
-    return res.status(400).send('Missing UID');
+    return res.status(400).send('Missing UID.');
   }
 
-  // Optional: import Supabase via service role for full access
-  const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
+  try {
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY // Use SERVICE key for server-side reads
+    );
 
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/uids?uid=eq.${uid}`, {
-    headers: {
-      apikey: SUPABASE_SERVICE_KEY,
-      Authorization: `Bearer ${SUPABASE_SERVICE_KEY}`,
-    },
-  });
+    const { data: uidRow, error } = await supabase
+      .from('uids')
+      .select('affiliate_url, is_claimed')
+      .eq('uid', uid)
+      .single();
 
-  const data = await response.json();
+    if (error || !uidRow) {
+      console.warn('UID not found or Supabase error:', error);
+      return res.redirect(`/claim?u=${uid}`);
+    }
 
-  // No record found
-  if (!data || data.length === 0) {
-    return res.redirect(302, `/claim?u=${uid}`);
+    if (!uidRow.is_claimed || !uidRow.affiliate_url) {
+      return res.redirect(`/claim?u=${uid}`);
+    }
+
+    return res.redirect(uidRow.affiliate_url);
+  } catch (err) {
+    console.error('Redirect error:', err);
+    return res.redirect(`/claim?u=${uid}`);
   }
-
-  const { affiliate_url } = data[0];
-
-  // If linked, go to affiliate
-  if (affiliate_url) {
-    return res.redirect(302, affiliate_url);
-  }
-
-  // Not yet claimed
-  return res.redirect(302, `/claim?u=${uid}`);
 }
